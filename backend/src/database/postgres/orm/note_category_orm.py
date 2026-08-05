@@ -1,31 +1,32 @@
 from typing import TYPE_CHECKING
-from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..base import BaseModel
 
 if TYPE_CHECKING:
+    from .note_orm import NoteOrm
     from .user_orm import UserOrm
 
 
 class NoteCategoryOrm(BaseModel):
     __tablename__ = "note_categories"
    
-    categories: Mapped[list[str]] = mapped_column(
-        ARRAY(String),
-        nullable=False,
-        server_default=text("'{}'::varchar[]"),
+    name: Mapped[str] = mapped_column(
+        nullable=False
     )
 
-    user_id: Mapped[UUID] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
+        nullable=True,
+        index=True
     )
 
     user: Mapped["UserOrm"] = relationship(
         back_populates="categories",
+    )
+
+    notes: Mapped[list["NoteOrm"]] = relationship(
+        back_populates="category"
     )

@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from backend.src.database.postgres.base import Base
-from backend.src.database.postgres import orm
+from src.database.postgres.base import Base
+from src.database.postgres import orm
 from src.core.config import settings
 
 orm.import_all()
