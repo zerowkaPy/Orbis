@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /frontend
+
+# Копіюємо файли залежностей
+COPY frontend/package*.json ./
+
+# Встановлюємо залежності
+RUN npm install
+
+# Копіюємо решту файлів проекту
+COPY frontend/ .
+
+# Відкриваємо порт 3000
+EXPOSE 3300
+
+# Запускаємо розробницький сервер Vite
+CMD ["npm", "run", "dev", "--", "--host"]

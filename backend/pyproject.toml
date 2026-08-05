@@ -1,0 +1,15 @@
+[project]
+name = "orbis"
+description = "Orbis — your best and most attentive listener!"
+requires-python = ">=3.12"
+authors = [
+    { name = "Ivanchenko Yaroslav", email = "zerowkacp@gmail.com" },
+]
+
+dependencies = [
+    "fastapi=>0.141.1",
+    "websockets=>17.0.1"
+]
+
+[tool.fastapi]
+entrypoint = "backend.src.main:app"

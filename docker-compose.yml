@@ -1,0 +1,46 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.front
+    ports:
+      - "3300:3300"
+    volumes:
+      # Монтуємо локальну директорію в контейнер для Hot Reloading
+      - ./frontend:/frontend
+      # Виключаємо node_modules з монтування, щоб використовувати встановлені в контейнері
+      - /frontend/node_modules
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.back
+    gpus: all
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/backend
+    command: >
+      uvicorn src.main:app
+      --host 0.0.0.0
+      --port 8000 
+      --reload 
+      --proxy-headers 
+      --forwarded-allow-ips="*"
+    ports:
+      - "8000:8000"
+  
+  postgres:
+    image: postgres:18.4-alpine3.24
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5444:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+volumes:
+  postgres_data:
