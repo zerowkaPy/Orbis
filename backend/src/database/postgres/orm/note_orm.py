@@ -3,14 +3,14 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..base import BaseModel
+from ..base import TimestampedModel
 
 if TYPE_CHECKING:
     from .note_category_orm import NoteCategoryOrm
     from .user_orm import UserOrm
 
 
-class NoteOrm(BaseModel):
+class NoteOrm(TimestampedModel):
     __tablename__ = "notes"
     __table_args__ = (
     Index(
@@ -33,9 +33,8 @@ class NoteOrm(BaseModel):
     )
 
     user: Mapped["UserOrm"] = relationship(
-        back_populates="categories",
+        back_populates="notes"
     )
-
     category: Mapped["NoteCategoryOrm"] = relationship(
         back_populates="notes"
     )

@@ -7,9 +7,13 @@ authors = [
 ]
 
 dependencies = [
-    "fastapi=>0.141.1",
-    "websockets=>17.0.1"
+    "fastapi>=0.141.1",
+    "websockets>=17.0.1"
 ]
 
 [tool.fastapi]
 entrypoint = "backend.src.main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

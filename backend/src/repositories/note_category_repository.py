@@ -1,24 +1,24 @@
 from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.postgres.orm import NoteOrm
+from ..database.postgres.orm import NoteCategoryOrm
 
 
-class NoteRepository:
+class NoteCategoryRepository:
     @classmethod
     async def add_one(
         cls,
         *,
         session: AsyncSession,
-        category_id: int,
-        text: str
+        name: str,
+        color: str
     ):
         stmt = (
-            insert(NoteOrm)
+            insert(NoteCategoryOrm)
             .values(
-                text=text,
-                category_id=category_id)
-            .returning(NoteOrm)
+                name=name,
+                color=color)
+            .returning(NoteCategoryOrm)
             # TODO: add authentication system and user_id=user_id
         )
         result = await session.execute(stmt)
@@ -30,32 +30,29 @@ class NoteRepository:
         cls,
         *,
         session: AsyncSession,
-        note_id: int,
+        note_category_id: int,
         **kwargs
         ):
         stmt = (
-            update(NoteOrm)
-            .where(NoteOrm.id == note_id)
+            update(NoteCategoryOrm)
+            .where(NoteCategoryOrm.id == note_category_id)
             .values(**kwargs)
-            .returning(NoteOrm)
+            .returning(NoteCategoryOrm)
         )
         result = await session.execute(stmt)
         await session.commit()
         return result.scalar_one()
 
     @classmethod
-    async def get(
+    async def get_all(
         cls,
         *,
-        session: AsyncSession,
-        category_id: int | None = None
+        session: AsyncSession
         # TODO: add keyword parameter 'user_id' in future
     ):
         query = (
-            select(NoteOrm)
+            select(NoteCategoryOrm)
         )
-        if category_id is not None:
-            query.where(NoteOrm.category_id==category_id)
         result = await session.execute(query)
         return result.scalars().all()
 
@@ -64,13 +61,13 @@ class NoteRepository:
         cls,
         *,
         session: AsyncSession,
-        note_id: int
+        note_category_id: int
     ):
         stmt = (
-            delete(NoteOrm)
+            delete(NoteCategoryOrm)
             .where(
                 and_(
-                    NoteOrm.id == note_id,
+                    NoteCategoryOrm.id == note_category_id,
                     # TODO: add 'NoteOrm.user_id == user_id' in future
                 )
             )
@@ -79,17 +76,18 @@ class NoteRepository:
         await session.commit()
 
     @classmethod
-    async def one_by_id(
+    async def get_one_by_id(
         cls,
         *,
         session: AsyncSession,
-        note_id: int
+        category_id: int
     ):
         query = (
-            select(NoteOrm)
-            .where(NoteOrm.id == note_id)
+            select(NoteCategoryOrm)
+            .where(NoteCategoryOrm.id == category_id)
         )
         result = await session.execute(query)
         return result.scalar_one_or_none()
+
 
     
