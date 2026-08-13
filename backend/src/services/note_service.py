@@ -31,20 +31,19 @@ def get_whisper_model() -> WhisperModel:
         )
     return _whisper_model
 
-async def add_note(
-    websocket: WebSocket,
-    session: AsyncSession
-    ):
+async def transcribe_audio_stream(websocket: WebSocket):
+    """
+    Accepts audio bytes over WebSocket, transcribes them with Whisper
+    and returns clear text {"transcript": "..."}.
+    """
     await websocket.accept()
-    logger.info("WebSocket connection accepted.")
+    logger.info("WebSocket connection for transcription accepted.")
 
     transcript = ""
 
     try:
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=True) as temp_audio_file:
-            await websocket.send_json({
-                "status": "connected"
-            })
+            await websocket.send_json({"status": "connected"})
 
             while True:
                 message = await websocket.receive()
@@ -56,63 +55,69 @@ async def add_note(
                 if message.get("bytes") is not None:
                     temp_audio_file.write(message["bytes"])
 
-                elif (
-                    message.get("text") is not None and
-                    message["text"] == "finish"
-                ):
+                elif message.get("text") == "finish":
                     logger.info("Received finish command. Processing audio...")
                     break
+
             if temp_audio_file.tell() == 0:
                 logger.warning("Received empty audio.")
+                await websocket.send_json({"status": "error", "message": "Audio stream was empty"})
                 return
+
             temp_audio_file.flush()
 
             model = get_whisper_model()
-            segments, info = model.transcribe(
-                temp_audio_file.name,
-                beam_size=5,
-            )
+            segments, info = model.transcribe(temp_audio_file.name, beam_size=5)
 
-            logger.info(f"Detected language '{info.language}' with probability {info.language_probability:.2f}")
+            logger.info(f"Detected language '{info.language}' ({info.language_probability:.2f})")
 
             for segment in segments:
                 transcript += segment.text
 
             logger.info("Transcription completed successfully.")
-
-            categories = await NoteCategoryRepository.get_all(session=session)
-            categories_dict: dict[int, str] = {category.id : category.name for category in categories}
-            note = await process_note(
-                text=transcript,
-                categories=categories_dict,
-                gemini_model=GEMINI_PROD_MODEL)
-            logger.info(note)
-            if note is None:
-                raise InvalidNoteData("Gemini returned invalid note data")
-            if (
-                note.category_id is None or
-                note.category_name is None or
-                note.note_text_in_markdown_format is None
-            ):
-                raise InvalidNoteData("Gemini returned invalid note data")
-            note_dict = note.model_dump()
-            await NoteRepository.add_one(
-                session=session,
-                category_id=note_dict["category_id"],
-                text=note_dict["note_text_in_markdown_format"]
-            )
-            await websocket.send_json(note.model_dump())
+            
+            await websocket.send_json({
+                "status": "completed",
+                "transcript": transcript.strip()
+            })
 
     except WebSocketDisconnect:
         logger.warning("Client disconnected unexpectedly.")
     except Exception:
-        logger.exception("Error occurred during processing note.")
+        logger.exception("Error occurred during transcription.")
+        await websocket.send_json({"status": "error", "message": "Failed to transcribe audio"})
     finally:
         try:
             await websocket.close()
         except RuntimeError:
             pass
         logger.info("WebSocket connection closed.")
+
+async def process_text_and_create_note(
+    text: str,
+    session: AsyncSession
+) -> NoteProcessGeminiAnswer:
+    categories = await NoteCategoryRepository.get_all(session=session)
+    categories_dict: dict[int, str] = {category.id: category.name for category in categories}
+
+    note = await process_note(
+        text=text,
+        categories=categories_dict,
+        gemini_model=GEMINI_PROD_MODEL
+    )
+
+    if note is None or note.category_id is None or note.note_text_in_markdown_format is None:
+        raise InvalidNoteData("Gemini returned invalid note data")
+
+    note_dict = note.model_dump()
+
+    await NoteRepository.add_one(
+        session=session,
+        category_id=note_dict["category_id"],
+        text=note_dict["note_text_in_markdown_format"]
+    )
+
+    return note
 
 
 async def change_note(

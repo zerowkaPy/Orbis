@@ -1,25 +1,41 @@
 from typing import Annotated
+import logging
 
-from fastapi import APIRouter, WebSocket, Query, status
-
-from src.services import note_service
+from fastapi import APIRouter, HTTPException, Query, WebSocket, status
 from src.repositories.note_repository import NoteRepository
-from ..dependencies.session import Session
-from ..models.note_model import NoteResponse, NoteRequest, NoteUpdate
+from src.services import note_service
 
+from src.api.v1.models.process_text_model import ProcessTextRequest
+
+from ..dependencies.session import Session
+from ..models.note_model import NoteRequest, NoteResponse
+
+logger = logging.getLogger(__name__)
 note_router = APIRouter(
     prefix="/api/v1",
     tags=["Note"]
 )
 
-@note_router.websocket("/note/add")
-async def add_note(
-    websocket: WebSocket,
+@note_router.websocket("/note/transcribe")
+async def transcribe_voice(websocket: WebSocket):
+    return await note_service.transcribe_audio_stream(websocket=websocket)
+
+@note_router.post("/note/process-text", status_code=status.HTTP_201_CREATED)
+async def process_text_to_note(
+    payload: ProcessTextRequest,
     session: Session
-    ):
-    return await note_service.add_note(
-        websocket=websocket,
-        session=session)
+):
+    if not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty.")
+    
+    try:
+        return await note_service.process_text_and_create_note(
+            text=payload.text,
+            session=session
+        )
+    except Exception as e:
+        logger.exception("Exception in /note/process-text route")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @note_router.websocket("/note/update")
 async def change_note(

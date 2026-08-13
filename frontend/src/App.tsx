@@ -1,78 +1,162 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BackgroundAnimation } from './components/BackgroundAnimation';
 import { VoiceRecorder } from './components/VoiceRecorder';
-import { Note } from './types';
-import { BookOpen, Sparkles, Clock } from 'lucide-react';
+import { CategoryManager } from './components/CategoryManager';
+import { InteractiveNodeCanvas } from './components/InteractiveNodeCanvas';
+import { ToastContainer } from './components/Toast';
+import { NoteGeminiAnswer, ToastNotification } from './types';
+import { Layers, Mic, Network } from 'lucide-react';
+
+// Импорт логотипа и текстового бренда
+import orbisLogo from './assets/icons/orbis_logo.png';
+import orbisText from './assets/icons/orbis_text.png';
 
 export const App: React.FC = () => {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeTab, setActiveTab] = useState<'recorder' | 'categories' | 'canvas'>('recorder');
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
-  const handleNoteAdded = (text: string) => {
-    const newNote: Note = {
-      id: crypto.randomUUID(),
-      text,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  // Установка логотипа Orbis во вкладку браузера (favicon)
+  useEffect(() => {
+    let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = orbisLogo;
+  }, []);
+
+  const handleNoteProcessed = (data: NoteGeminiAnswer) => {
+    const id = crypto.randomUUID();
+
+    // Fallback if category name wasn't provided
+    const categoryName = data.category_name || `Category #${data.category_id}` || 'Uncategorized';
+
+    const newToast: ToastNotification = {
+      id,
+      category_id: data.category_id,
+      category_name: categoryName,
+      message: data.note_text_in_markdown_format,
+      type: 'success',
     };
-    setNotes((prev) => [newNote, ...prev]);
+
+    setToasts((prev) => [...prev, newToast]);
+
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  };
+
+  const handleNoteError = (message?: string) => {
+    const id = crypto.randomUUID();
+
+    const errorToast: ToastNotification = {
+      id,
+      type: 'error',
+      message: message || 'Не вдалося створити нотатку 😢',
+    };
+
+    setToasts((prev) => [...prev, errorToast]);
+
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   return (
     <div className="min-h-screen flex flex-col justify-between p-6 md:p-12 relative overflow-hidden">
       <BackgroundAnimation />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      <header className="max-w-2xl mx-auto w-full text-center space-y-3 pt-6">
-        <div className="inline-flex items-center gap-2 px-3 h-7 rounded-full bg-teal-950/60 border border-teal-500/20 text-teal-300 text-xs tracking-wider uppercase backdrop-blur-sm">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>ИИ Ассистент Заметок</span>
+      <header className="max-w-4xl mx-auto w-full text-center space-y-4 pt-4 z-10">
+        {/* Логотип + название бренда по центру */}
+        <div className="flex flex-col items-center justify-center gap-1">
+          <img
+            src={orbisLogo}
+            alt="Orbis Logo"
+            className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-md"
+          />
+          <img
+            src={orbisText}
+            alt="Orbis"
+            className="w-28 h-28 md:w-36 md:h-36 object-contain drop-shadow-lg"
+          />
         </div>
+
         <h1 className="text-3xl md:text-4xl font-light tracking-tight text-slate-100">
-          Освободите мысли, <br />
-          <span className="font-normal text-transparent bg-clip-text bg-gradient-to-r from-teal-200 via-emerald-300 to-indigo-300">
-            превратив их в структурированный дневник
+          Your{' '}
+          <span className="font-normal text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-violet-300 to-purple-400">
+            most attentive listener. Probably.
           </span>
         </h1>
+
+        {/* Navigation Tabs */}
+        <div className="flex justify-center flex-wrap gap-2 pt-2">
+          <button
+            onClick={() => setActiveTab('recorder')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs transition-all duration-300 ${
+              activeTab === 'recorder'
+                ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-500/40 shadow-lg backdrop-blur-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+            }`}
+          >
+            <Mic className="w-4 h-4" /> Record
+          </button>
+
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs transition-all duration-300 ${
+              activeTab === 'categories'
+                ? 'bg-purple-500/20 text-purple-200 border border-purple-500/40 shadow-lg backdrop-blur-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+            }`}
+          >
+            <Layers className="w-4 h-4" /> Library
+          </button>
+
+          {/* Новая вкладка интерактивной карты */}
+          <button
+            onClick={() => setActiveTab('canvas')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs transition-all duration-300 ${
+              activeTab === 'canvas'
+                ? 'bg-teal-500/20 text-teal-200 border border-teal-500/40 shadow-lg backdrop-blur-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+            }`}
+          >
+            <Network className="w-4 h-4" /> Interactive Map
+          </button>
+        </div>
       </header>
 
-      <main className="max-w-2xl mx-auto w-full my-auto py-8">
-        <VoiceRecorder onNoteAdded={handleNoteAdded} />
-
-        {/* Список заметок */}
-        <section className="mt-8 space-y-4">
-          <div className="flex items-center gap-2 text-slate-400 text-sm border-b border-slate-800/80 pb-2 px-1">
-            <BookOpen className="w-4 h-4 text-teal-400" />
-            <h2 className="font-medium tracking-wide">Записи дневника</h2>
-            <span className="ml-auto text-xs text-slate-500">{notes.length} заметок</span>
+      {/* Вывод соответствующего компонента */}
+      <main className="max-w-5xl mx-auto w-full my-auto py-6 z-10">
+        {activeTab === 'recorder' && (
+          <VoiceRecorder
+            onNoteProcessed={handleNoteProcessed}
+            onError={handleNoteError}
+          />
+        )}
+        {activeTab === 'categories' && <CategoryManager onError={handleNoteError} />}
+        {activeTab === 'canvas' && (
+          <div className="fixed inset-0 top-0 left-0 w-screen h-screen z-20">
+            <InteractiveNodeCanvas
+              onNavigate={(view) => {
+                if (view === 'recorder' || view === 'categories' || view === 'canvas') {
+                  setActiveTab(view);
+                }
+              }}
+              onClose={() => setActiveTab('recorder')}
+            />
           </div>
-
-          {notes.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-slate-800/60 rounded-2xl bg-slate-900/20 backdrop-blur-xs">
-              <p className="text-slate-500 text-sm">
-                Заметок пока нет. Запишите первую голосовую мысль выше.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {notes.map((note) => (
-                <article
-                  key={note.id}
-                  className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-md transition-all duration-300 hover:border-slate-700/80 hover:bg-slate-900/60 shadow-lg"
-                >
-                  <p className="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
-                    {note.text}
-                  </p>
-                  <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <Clock className="w-3 h-3" />
-                    <time>{note.createdAt}</time>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        )}
       </main>
 
-      <footer className="text-center text-xs text-slate-600 py-4">
-        Спокойный голосовой дневник заметок &copy; {new Date().getFullYear()}
+      <footer className="text-center text-xs text-slate-600 py-4 z-10">
+        Orbis &copy; {new Date().getFullYear()}
       </footer>
     </div>
   );
