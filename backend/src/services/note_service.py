@@ -1,22 +1,35 @@
 import logging
 import tempfile
 
-from fastapi import WebSocket
+from fastapi import WebSocket, HTTPException, status
 from faster_whisper import WhisperModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.repositories.note_category_repository import NoteCategoryRepository
 from src.repositories.note_repository import NoteRepository
 from starlette.websockets import WebSocketDisconnect
+from .gemini_service import (
+    GEMINI_PROD_MODEL,
+    process_note,
+    update_note,
+    NoteProcessGeminiAnswer,
+    NoteUpdateGeminiAnswer,
+    InvalidNoteData
+)
 
-from .gemini_service import GEMINI_PROD_MODEL, process_note, update_note
 
 logger = logging.getLogger(__name__)
 
-model = WhisperModel(
-    "small",
-    device="cpu",
-    compute_type="int8"
-)
+_whisper_model: WhisperModel | None = None
+
+def get_whisper_model() -> WhisperModel:
+    global _whisper_model
+    if _whisper_model is None:
+        _whisper_model = WhisperModel(
+            "small",
+            device="cpu",
+            compute_type="int8"
+        )
+    return _whisper_model
 
 async def add_note(
     websocket: WebSocket,
@@ -49,9 +62,12 @@ async def add_note(
                 ):
                     logger.info("Received finish command. Processing audio...")
                     break
-                
+            if temp_audio_file.tell() == 0:
+                logger.warning("Received empty audio.")
+                return
             temp_audio_file.flush()
 
+            model = get_whisper_model()
             segments, info = model.transcribe(
                 temp_audio_file.name,
                 beam_size=5,
@@ -71,6 +87,14 @@ async def add_note(
                 categories=categories_dict,
                 gemini_model=GEMINI_PROD_MODEL)
             logger.info(note)
+            if note is None:
+                raise InvalidNoteData("Gemini returned invalid note data")
+            if (
+                note.category_id is None or
+                note.category_name is None or
+                note.note_text_in_markdown_format is None
+            ):
+                raise InvalidNoteData("Gemini returned invalid note data")
             note_dict = note.model_dump()
             await NoteRepository.add_one(
                 session=session,
@@ -126,6 +150,7 @@ async def change_note(
                 
             temp_audio_file.flush()
 
+            model = get_whisper_model()
             segments, info = model.transcribe(
                 temp_audio_file.name,
                 beam_size=5,
@@ -142,15 +167,20 @@ async def change_note(
                 session=session,
                 note_id=note_id
             )
-            category_name = await NoteCategoryRepository.get_one_by_id(
+            category = await NoteCategoryRepository.get_one_by_id(
                 session=session,
                 category_id=note.category_id)
-            updated_note = await update_note(
-               category_name=category_name,
-               note_text=note.text,
-               user_request=transcript,
-               gemini_model=GEMINI_PROD_MODEL)
-            logger.info(note)
+            updated_note: NoteUpdateGeminiAnswer | None = await update_note(
+                    category_name=category.name,
+                    note_text=note.text,
+                    user_request=transcript,
+                    gemini_model=GEMINI_PROD_MODEL)
+            logger.info(updated_note)
+            if updated_note is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="The AI service is temporarily unavailable. Please try again later."
+                )
             note_dict = updated_note.model_dump()
             await NoteRepository.edit_one(
                 session=session,

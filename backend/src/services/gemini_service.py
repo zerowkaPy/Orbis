@@ -1,10 +1,9 @@
-from enum import Enum
-
 from google.genai import types
 from google.genai._api_client import BaseApiClient
 from google.genai.client import AsyncClient
 from pydantic import BaseModel, Field
 from src.core.config import settings
+from src.utils.decorators import retry_gemini_request
 
 GEMINI_PROD_MODEL = "gemini-3.5-flash-lite"
 GEMINI_TEST_MODEL = "gemini-3.1-flash-lite"
@@ -13,7 +12,13 @@ client = BaseApiClient(
     api_key=settings.GEMINI_API_KEY
 )
 
-async_client = AsyncClient(api_client=client)
+def get_genai_client():
+    client = BaseApiClient(
+        api_key=settings.GEMINI_API_KEY
+    )
+    # Клиент создается в контексте текущего запущенного event loop
+    async_client = AsyncClient(api_client=client)
+    return async_client
 
 PROCESS_PROMT = """
 Ты - orbis.
@@ -26,7 +31,8 @@ PROCESS_PROMT = """
 Все доступные категории (категории в формате ключ-значение, где ключ - это id категории, а значение - её название):
 {categories}
 
-Если ты считаешь что сейчас не существует подходящей категории, то используй категорию с category_id=0
+Если ты считаешь что сейчас не существует подходящей категории, то верни category_id=None и category_name=None и note_text_in_markdown_format=None
+Если тебе пришел пустой текст, то верни note_text_in_markdown_format=None
 
 Ты должен прерватить обычный текст в очень структурированную заметку, которую человек может перечитать через большой период времени, что бы вспомнить что он делал или изучал.
 Тебе будут поступать различные заметки, связанные с тематикой обучения. В таких заметках часто будут спецефичные слова пользователей, которые нельзя изменять, их нужно оставить такими какие они есть.
@@ -92,9 +98,9 @@ class NoteProcessGeminiAnswer(BaseModel):
     status: str | None = Field(
         default="completed"
     )
-    category_id: int
-    category_name: str
-    note_text_in_markdown_format: str
+    category_id: int | None
+    category_name: str | None
+    note_text_in_markdown_format: str | None
 
 class NoteUpdateGeminiAnswer(BaseModel):
     status: str | None = Field(
@@ -102,16 +108,21 @@ class NoteUpdateGeminiAnswer(BaseModel):
     )
     note_text_in_markdown_format: str
 
+class InvalidNoteData(Exception):
+    pass
+
+@retry_gemini_request(retry=3)
 async def process_note(
     *,
     text: str,
     categories: dict[int, str],
     gemini_model: str
-) -> BaseModel | dict | Enum | str | None:
+) -> NoteProcessGeminiAnswer | None:
     
     formated_promt = PROCESS_PROMT.format(
         categories=categories
     )
+    async_client = get_genai_client()
     response = await async_client.models.generate_content(
         model=gemini_model,
         contents=text,
@@ -122,25 +133,27 @@ async def process_note(
         ),
     )
     if response.parsed:
-        return response.parsed
-    
+        return NoteProcessGeminiAnswer.model_validate(response.parsed)
+
     if response.text:
         return NoteProcessGeminiAnswer.model_validate_json(response.text)
-        
+
     return None
 
+@retry_gemini_request(retry=3)
 async def update_note(
     *,
     category_name: str,
     note_text: str,
     user_request: str,
     gemini_model
-) -> BaseModel | dict | Enum | str | None:
+) -> NoteUpdateGeminiAnswer | None:
 
     formated_promt = UPDATE_PROMT.format(
             category_name=category_name,
             text=note_text
         )
+    async_client = get_genai_client()
     response = await async_client.models.generate_content(
         model=gemini_model,
         contents=user_request,
@@ -151,7 +164,7 @@ async def update_note(
         ),
     )
     if response.parsed:
-        return response.parsed
+        return NoteUpdateGeminiAnswer.model_validate(response.parsed)
     
     if response.text:
         return NoteUpdateGeminiAnswer.model_validate_json(response.text)
