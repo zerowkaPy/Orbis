@@ -1,4 +1,4 @@
-import asyncio
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,14 +8,13 @@ from src.main import app
 
 
 @pytest.fixture
-def test_client():
-    async def override_get_db():
+def test_client() -> Generator[TestClient, None, None]:
+    async def override_get_db() -> AsyncGenerator[MagicMock, None]:
         yield MagicMock()
 
     app.dependency_overrides[get_db] = override_get_db
 
-    client = TestClient(app)
-
-    yield client
+    with TestClient(app) as client:
+        yield client
 
     app.dependency_overrides.clear()
