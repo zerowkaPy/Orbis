@@ -14,8 +14,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
-      - name: Create test environment
-        run: cp backend/.env.test backend/.env
+      - name: Create environment
+        run: |
+            cp backend/.env.secret backend/.env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> backend/.env
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> backend/.env
 
       - name: Run Database
         run: docker compose up -d postgres
