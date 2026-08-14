@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  testing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Create environment
+        run: |
+            cp backend/.env.test backend/.env
+
+      - name: Run Database
+        run: docker compose up -d postgres
+
+      - name: Run Tests
+        env:
+            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+            POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+            docker compose run --rm \
+                -e GEMINI_API_KEY \
+                -e POSTGRES_PASSWORD \
+                backend pytest
+
+      - name: Stop Containers
+        if: always()
+        run: docker compose down -v
