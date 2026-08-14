@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     )
     GEMINI_API_KEY: str = Field()
     POSTGRES_URL: PostgresDsn = Field()
-    POSTGRES_URL_FOR_ALEMBIC: PostgresDsn = Field()
     POSTGRES_PASSWORD: str = Field()
 
 settings = Settings() # type: ignore
