@@ -16,7 +16,7 @@ jobs:
 
       - name: Create environment
         run: |
-            cp backend/.env.secret backend/.env
+            cp backend/.env.test backend/.env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> backend/.env
             echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> backend/.env
 
