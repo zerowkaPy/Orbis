@@ -2,4 +2,5 @@
 *.pyc
 .venv
 .env
+.env.test
 backend/.env
