@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  testing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Run Database
+        run: docker compose up -d postgres
+
+      - name: Run Tests
+        run: docker compose run --rm backend pytest
+
+      - name: Stop Containers
+        if: always()
+        run: docker compose down -v
