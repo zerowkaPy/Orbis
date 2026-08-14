@@ -14,28 +14,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
-      - name: Check Gemini secret
-        env:
-            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-            if [ -z "$GEMINI_API_KEY" ]; then
-            echo "❌ GEMINI_API_KEY is empty"
-            exit 1
-            else
-            echo "✅ GEMINI_API_KEY exists"
-            fi
-
       - name: Create environment
         run: |
             cp backend/.env.test backend/.env
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> backend/.env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> backend/.env
 
       - name: Run Database
         run: docker compose up -d postgres
 
       - name: Run Tests
-        run: docker compose run --rm backend pytest
+        env:
+            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+            POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+            docker compose run --rm \
+                -e GEMINI_API_KEY \
+                -e POSTGRES_PASSWORD \
+                backend pytest
 
       - name: Stop Containers
         if: always()
