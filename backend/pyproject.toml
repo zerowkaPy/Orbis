@@ -1,5 +1,6 @@
 [project]
 name = "orbis"
+version = "0.1.0"
 description = "Orbis — your best and most attentive listener!"
 requires-python = ">=3.12"
 authors = [
@@ -7,8 +8,12 @@ authors = [
 ]
 
 dependencies = [
-    "fastapi>=0.141.1",
-    "websockets>=17.0.1"
+    "fastapi[standard]>=0.141.1",
+    "faster-whisper>=1.2.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "sqlalchemy>=2.0.52",
+    "websockets>=17.0.1",
 ]
 
 [tool.fastapi]
