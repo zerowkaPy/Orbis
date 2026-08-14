@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from src.services.note_service import NoteProcessGeminiAnswer
 
 
-def test_add_note(test_client: TestClient):
+def test_note_transcribe(test_client: TestClient):
     fake_segment = MagicMock()
     fake_segment.text = "Buy milk tomorrow"
 
@@ -43,7 +43,7 @@ def test_add_note(test_client: TestClient):
             new_callable=AsyncMock,
         ),
 
-        test_client.websocket_connect("/api/v1/note/add") as session
+        test_client.websocket_connect("/api/v1/note/transcribe") as session
     ):
 
             response = session.receive_json()
@@ -58,6 +58,5 @@ def test_add_note(test_client: TestClient):
 
             result = session.receive_json()
 
-            assert result["category_id"] == 1
-            assert result["category_name"] == "Personal"
-            assert result["note_text_in_markdown_format"] == "Buy milk tomorrow"
+            assert result.get("status") == "completed"
+            assert result.get("transcript") is not None 
