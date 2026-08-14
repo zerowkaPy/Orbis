@@ -14,22 +14,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
-      - name: Check secrets
+      - name: Check Gemini secret
         env:
             GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-            POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
             if [ -z "$GEMINI_API_KEY" ]; then
-            echo "GEMINI_API_KEY is missing"
+            echo "❌ GEMINI_API_KEY is empty"
             exit 1
+            else
+            echo "✅ GEMINI_API_KEY exists"
             fi
-
-            if [ -z "$POSTGRES_PASSWORD" ]; then
-            echo "POSTGRES_PASSWORD is missing"
-            exit 1
-            fi
-
-            echo "Required secrets are present"
 
       - name: Create environment
         run: |
